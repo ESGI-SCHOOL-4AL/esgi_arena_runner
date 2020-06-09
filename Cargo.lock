@@ -517,6 +517,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "esgi_arena_resolver_algorithms"
+version = "1.0.0"
+source = "git+ssh://github.com/ESGI-SCHOOL-4AL/esgi_arena_resolver_algorithms.git#f66dd89e240c562071e3e0fb606e28dcf5f811e3"
+
+[[package]]
 name = "esgi_arena_runner"
 version = "0.1.0"
 dependencies = [
@@ -524,6 +529,7 @@ dependencies = [
  "actix-web",
  "dotenv",
  "env_logger",
+ "esgi_arena_resolver_algorithms",
  "log",
  "serde",
  "serde_json",
