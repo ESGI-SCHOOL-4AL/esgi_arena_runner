@@ -36,27 +36,62 @@ async fn chinese_rings_response(data: web::Json<usize>) -> Result<HttpResponse> 
     return Ok(HttpResponse::Ok().json(chinese_rings_answer));
 }
 
-async fn labyrinth_response(data: web::Json<Vec<Vec<i8>>>) -> Result<HttpResponse> {
+async fn labyrinth_response(data: web::Json<Vec<Vec<i8>>>) -> Result<HttpResponse, HttpResponse> {
     let cloned_data = data.clone();
-    let (start_point, end_point) = get_start_to_end_points(cloned_data.clone()).unwrap();
-    let (fs, aps) = fs_aps_from_matrix(cloned_data.clone()).unwrap();
-    let start_field = get_field_by_index(cloned_data.clone(), start_point).unwrap();
-    let end_field = get_field_by_index(cloned_data.clone(), end_point).unwrap();
-    let labyrinth_answer: Vec<PointJson> = a_star_resolver(fs, aps, cloned_data.len(), (start_field, end_field))
-        .unwrap()
-        .iter()
-            .map(|point| PointJson::from_point(*point))
-            .collect();
     
-    return Ok(HttpResponse::Ok().json(labyrinth_answer));
+    let (start_point, end_point) = match get_start_to_end_points(cloned_data.clone()) {
+        Ok(result) => result,
+        Err(error) => return Err(HttpResponse::BadRequest().json(error)),
+    };
+    
+    let (fs, aps) = match fs_aps_from_matrix(cloned_data.clone()) {
+        Ok(result) => result,
+        Err(error) => return Err(HttpResponse::BadRequest().json(error)),
+    };
+    
+    let start_field = match get_field_by_index(cloned_data.clone(), start_point) {
+        Ok(result) => result,
+        Err(error) => return Err(HttpResponse::BadRequest().json(error)),
+    };
+    
+    let end_field = match get_field_by_index(cloned_data.clone(), end_point){
+        Ok(result) => result,
+        Err(error) => return Err(HttpResponse::BadRequest().json(error)),
+    };
+
+    return match a_star_resolver(fs, aps, cloned_data.len(), (start_field, end_field)) {
+        Ok(result) => Ok(HttpResponse::Ok().json(result.iter()
+            .map(|point| PointJson::from_point(*point))
+            .collect::<Vec<PointJson>>())),
+        Err(error) => Err(HttpResponse::BadRequest().json(error)),
+        
+    };
+
 }
 
-async fn escape_ways_response(data: web::Json<Vec<Vec<i8>>>) -> Result<HttpResponse> {
+async fn escape_ways_response(data: web::Json<Vec<Vec<i8>>>) -> Result<HttpResponse, HttpResponse> {
     let cloned_data = data.clone();
-    let (start_point, end_point) = get_start_to_end_points(cloned_data.clone()).unwrap();
-    let (fs, aps) = fs_aps_from_matrix(cloned_data.clone()).unwrap();
-    let start_field = get_field_by_index(cloned_data.clone(), start_point).unwrap();
-    let end_field = get_field_by_index(cloned_data.clone(), end_point).unwrap();
+
+    let (start_point, end_point) = match get_start_to_end_points(cloned_data.clone()) {
+        Ok(result) => result,
+        Err(error) => return Err(HttpResponse::BadRequest().json(error)),
+    };
+    
+    let (fs, aps) = match fs_aps_from_matrix(cloned_data.clone()) {
+        Ok(result) => result,
+        Err(error) => return Err(HttpResponse::BadRequest().json(error)),
+    };
+    
+    let start_field = match get_field_by_index(cloned_data.clone(), start_point) {
+        Ok(result) => result,
+        Err(error) => return Err(HttpResponse::BadRequest().json(error)),
+    };
+
+    let end_field = match get_field_by_index(cloned_data.clone(), end_point){
+        Ok(result) => result,
+        Err(error) => return Err(HttpResponse::BadRequest().json(error)),
+    };
+    
     let mut all_path = Vec::new();
     let mut all_path_point_json: Vec<Vec<PointJson>> = Vec::new();
 
@@ -98,7 +133,7 @@ async fn main() -> std::io::Result<()> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use actix_web::test;
+    use actix_web::{ test, http };
 
     #[actix_rt::test]
     async fn chinese_rings_test() {
@@ -126,7 +161,21 @@ mod test {
         ];
 
         assert!(resp.status().is_success());
-        assert_eq!(resp_body, expected_output)
+        assert_eq!(resp_body, expected_output);
+
+    }
+
+    #[actix_rt::test]
+    async fn chinese_rings_lower_than_zero_test() {
+        let size_sample: i8 = -1;
+
+        let mut app = test::init_service(App::new().route("/chinese_rings", web::post().to(chinese_rings_response))).await;
+        let req_1 = test::TestRequest::post().uri("/chinese_rings").set_json(&size_sample).to_request();
+
+        let resp = test::call_service(&mut app, req_1).await;
+
+        assert!(resp.status().is_client_error());
+        assert_eq!(resp.status(), http::StatusCode::BAD_REQUEST);
 
     }
 
@@ -170,7 +219,79 @@ mod test {
         ];
 
         assert!(resp.status().is_success());
-        assert_eq!(resp_body, expected_output)
+        assert_eq!(resp_body, expected_output);
+    }
+
+    #[actix_rt::test]
+    async fn labyrinth_empty_test() {
+        let matrix_sample: Vec<Vec<i8>> = vec![];
+
+        let mut app = test::init_service(App::new().route("/labyrinth", web::post().to(labyrinth_response))).await;
+        let req_1 = test::TestRequest::post().uri("/labyrinth").set_json(&matrix_sample).to_request();
+        let req_2 = test::TestRequest::post().uri("/labyrinth").set_json(&matrix_sample).to_request();
+
+        let resp = test::call_service(&mut app, req_1).await;
+        let resp_body: String = test::read_response_json(&mut app, req_2).await; 
+
+        assert!(resp.status().is_client_error());
+        assert_eq!(resp_body, String::from("The bord cannot be empty"));
+    }
+
+    #[actix_rt::test]
+    async fn labyrinth_different_number_of_elements_test() {
+        let matrix_sample: Vec<Vec<i8>> = vec![
+            vec![2, -1, 0],
+            vec![0, -1, 0],
+            vec![0, 0]
+        ];
+
+        let mut app = test::init_service(App::new().route("/labyrinth", web::post().to(labyrinth_response))).await;
+        let req_1 = test::TestRequest::post().uri("/labyrinth").set_json(&matrix_sample).to_request();
+        let req_2 = test::TestRequest::post().uri("/labyrinth").set_json(&matrix_sample).to_request();
+
+        let resp = test::call_service(&mut app, req_1).await;
+        let resp_body: String = test::read_response_json(&mut app, req_2).await; 
+
+        assert!(resp.status().is_client_error());
+        assert_eq!(resp_body, String::from("The number of colunms should be equals to the number of lines"));
+    }
+
+    #[actix_rt::test]
+    async fn labyrinth_many_end_test() {
+        let matrix_sample: Vec<Vec<i8>> = vec![
+            vec![2, -1, 2],
+            vec![0, -1, 0],
+            vec![0, 0, 1]
+        ];
+
+        let mut app = test::init_service(App::new().route("/labyrinth", web::post().to(labyrinth_response))).await;
+        let req_1 = test::TestRequest::post().uri("/labyrinth").set_json(&matrix_sample).to_request();
+        let req_2 = test::TestRequest::post().uri("/labyrinth").set_json(&matrix_sample).to_request();
+
+        let resp = test::call_service(&mut app, req_1).await;
+        let resp_body: String = test::read_response_json(&mut app, req_2).await; 
+
+        assert!(resp.status().is_client_error());
+        assert_eq!(resp_body, String::from("Cannot have many end points"));
+    }
+
+    #[actix_rt::test]
+    async fn labyrinth_many_start_test() {
+        let matrix_sample: Vec<Vec<i8>> = vec![
+            vec![2, -1, 1],
+            vec![0, -1, 0],
+            vec![0, 0, 1]
+        ];
+
+        let mut app = test::init_service(App::new().route("/labyrinth", web::post().to(labyrinth_response))).await;
+        let req_1 = test::TestRequest::post().uri("/labyrinth").set_json(&matrix_sample).to_request();
+        let req_2 = test::TestRequest::post().uri("/labyrinth").set_json(&matrix_sample).to_request();
+
+        let resp = test::call_service(&mut app, req_1).await;
+        let resp_body: String = test::read_response_json(&mut app, req_2).await; 
+
+        assert!(resp.status().is_client_error());
+        assert_eq!(resp_body, String::from("Cannot have many start points"));
     }
 
     #[actix_rt::test]
@@ -229,6 +350,79 @@ mod test {
         ];
 
         assert!(resp.status().is_success());
-        assert_eq!(resp_body, expected_output)
+        assert_eq!(resp_body, expected_output);
     }
+
+    #[actix_rt::test]
+    async fn escape_ways_empty_test() {
+        let matrix_sample: Vec<Vec<i8>> = vec![];
+
+        let mut app = test::init_service(App::new().route("/escape_ways", web::post().to(escape_ways_response))).await;
+        let req_1 = test::TestRequest::post().uri("/escape_ways").set_json(&matrix_sample).to_request();
+        let req_2 = test::TestRequest::post().uri("/escape_ways").set_json(&matrix_sample).to_request();
+
+        let resp = test::call_service(&mut app, req_1).await;
+        let resp_body: String = test::read_response_json(&mut app, req_2).await; 
+
+        assert!(resp.status().is_client_error());
+        assert_eq!(resp_body, String::from("The bord cannot be empty"));
+    }
+
+    #[actix_rt::test]
+    async fn escape_ways_different_number_of_elements_test() {
+        let matrix_sample: Vec<Vec<i8>> = vec![
+            vec![2, -1, 0],
+            vec![0, -1, 0],
+            vec![0, 0]
+        ];
+
+        let mut app = test::init_service(App::new().route("/escape_ways", web::post().to(escape_ways_response))).await;
+        let req_1 = test::TestRequest::post().uri("/escape_ways").set_json(&matrix_sample).to_request();
+        let req_2 = test::TestRequest::post().uri("/escape_ways").set_json(&matrix_sample).to_request();
+
+        let resp = test::call_service(&mut app, req_1).await;
+        let resp_body: String = test::read_response_json(&mut app, req_2).await; 
+
+        assert!(resp.status().is_client_error());
+        assert_eq!(resp_body, String::from("The number of colunms should be equals to the number of lines"));
+    }
+
+    #[actix_rt::test]
+    async fn escape_ways_many_end_test() {
+        let matrix_sample: Vec<Vec<i8>> = vec![
+            vec![2, -1, 2],
+            vec![0, -1, 0],
+            vec![0, 0, 1]
+        ];
+
+        let mut app = test::init_service(App::new().route("/escape_ways", web::post().to(escape_ways_response))).await;
+        let req_1 = test::TestRequest::post().uri("/escape_ways").set_json(&matrix_sample).to_request();
+        let req_2 = test::TestRequest::post().uri("/escape_ways").set_json(&matrix_sample).to_request();
+
+        let resp = test::call_service(&mut app, req_1).await;
+        let resp_body: String = test::read_response_json(&mut app, req_2).await; 
+
+        assert!(resp.status().is_client_error());
+        assert_eq!(resp_body, String::from("Cannot have many end points"));
+    }
+
+    #[actix_rt::test]
+    async fn escape_ways_many_start_test() {
+        let matrix_sample: Vec<Vec<i8>> = vec![
+            vec![2, -1, 1],
+            vec![0, -1, 0],
+            vec![0, 0, 1]
+        ];
+
+        let mut app = test::init_service(App::new().route("/escape_ways", web::post().to(escape_ways_response))).await;
+        let req_1 = test::TestRequest::post().uri("/escape_ways").set_json(&matrix_sample).to_request();
+        let req_2 = test::TestRequest::post().uri("/escape_ways").set_json(&matrix_sample).to_request();
+
+        let resp = test::call_service(&mut app, req_1).await;
+        let resp_body: String = test::read_response_json(&mut app, req_2).await; 
+
+        assert!(resp.status().is_client_error());
+        assert_eq!(resp_body, String::from("Cannot have many start points"));
+    }
+
 }
