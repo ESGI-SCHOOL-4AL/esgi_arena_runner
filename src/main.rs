@@ -7,7 +7,7 @@ extern crate esgi_arena_resolver_algorithms;
 
 use actix_web::{web, App, HttpResponse, HttpServer, Result };
 use actix_web::middleware::Logger;
-use serde::{ Serialize };
+use serde::{ Serialize, Deserialize };
 use std::env;
 use env_logger::Env;
 use esgi_arena_resolver_algorithms::chinese_rings::chinese_rings_resolver;
@@ -16,7 +16,7 @@ use esgi_arena_resolver_algorithms::a_star::{ a_star_resolver, get_start_to_end_
 use esgi_arena_resolver_algorithms::dfs::dfs_fs_aps_recursive;
 
 
-#[derive(Serialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
 struct PointJson {
     x: usize,
     y: usize
@@ -93,4 +93,142 @@ async fn main() -> std::io::Result<()> {
     .bind(connection_string)?
     .run()
     .await;
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use actix_web::test;
+
+    #[actix_rt::test]
+    async fn chinese_rings_test() {
+        let size_sample: u8 = 4;
+
+        let mut app = test::init_service(App::new().route("/chinese_rings", web::post().to(chinese_rings_response))).await;
+        let req_1 = test::TestRequest::post().uri("/chinese_rings").set_json(&size_sample).to_request();
+        let req_2 = test::TestRequest::post().uri("/chinese_rings").set_json(&size_sample).to_request();
+
+        let resp = test::call_service(&mut app, req_1).await;
+        let resp_body: Vec<Vec<bool>> = test::read_response_json(&mut app, req_2).await;        
+        
+        let expected_output = vec![
+            vec![false, false, false, false], 
+            vec![true, false, false, false], 
+            vec![true, true, false, false], 
+            vec![false, true, false, false], 
+            vec![false, true, true, false], 
+            vec![true, true, true, false], 
+            vec![true, false, true, false], 
+            vec![false, false, true, false], 
+            vec![false, false, true, true], 
+            vec![true, false, true, true], 
+            vec![true, true, true, true]
+        ];
+
+        assert!(resp.status().is_success());
+        assert_eq!(resp_body, expected_output)
+
+    }
+
+    #[actix_rt::test]
+    async fn labyrinth_test() {
+        let matrix_sample: Vec<Vec<i8>> = vec![
+            vec![2, -1, 0],
+            vec![0, -1, 0],
+            vec![0, 0, 1]
+        ];
+
+        let mut app = test::init_service(App::new().route("/labyrinth", web::post().to(labyrinth_response))).await;
+        let req_1 = test::TestRequest::post().uri("/labyrinth").set_json(&matrix_sample).to_request();
+        let req_2 = test::TestRequest::post().uri("/labyrinth").set_json(&matrix_sample).to_request();
+
+        let resp = test::call_service(&mut app, req_1).await;
+        let resp_body: Vec<PointJson> = test::read_response_json(&mut app, req_2).await; 
+
+        let expected_output = vec![
+            PointJson {
+                x: 2,
+                y: 2
+            },
+            PointJson {
+                x: 2,
+                y: 1
+            },
+            PointJson {
+                x: 2,
+                y: 0
+            },
+            PointJson {
+                x: 1,
+                y: 0
+            },
+            PointJson {
+                x: 0,
+                y: 0
+            }
+
+        ];
+
+        assert!(resp.status().is_success());
+        assert_eq!(resp_body, expected_output)
+    }
+
+    #[actix_rt::test]
+    async fn escape_ways_test() {
+        let matrix_sample: Vec<Vec<i8>> = vec![
+            vec![2, 0, 0],
+            vec![0, -1, 0],
+            vec![0, 0, 1]
+        ];
+
+        let mut app = test::init_service(App::new().route("/escape_ways", web::post().to(escape_ways_response))).await;
+        let req_1 = test::TestRequest::post().uri("/escape_ways").set_json(&matrix_sample).to_request();
+        let req_2 = test::TestRequest::post().uri("/escape_ways").set_json(&matrix_sample).to_request();
+
+        let resp = test::call_service(&mut app, req_1).await;
+        let resp_body: Vec<Vec<PointJson>> = test::read_response_json(&mut app, req_2).await; 
+
+        let expected_output = vec![
+            vec![
+                PointJson {
+                    x: 2,
+                    y: 1
+                },
+                PointJson {
+                    x: 2,
+                    y: 0
+                },
+                PointJson {
+                    x: 1,
+                    y: 0
+                },
+                PointJson {
+                    x: 0,
+                    y: 0
+                }
+            ],
+            vec![
+                PointJson {
+                    x: 1,
+                    y: 2
+                },
+                PointJson {
+                    x: 0,
+                    y: 2
+                },
+                PointJson {
+                    x: 0,
+                    y: 1
+                },
+                PointJson {
+                    x: 0,
+                    y: 0
+                }
+            ]
+
+        ];
+
+        assert!(resp.status().is_success());
+        assert_eq!(resp_body, expected_output)
+    }
 }
