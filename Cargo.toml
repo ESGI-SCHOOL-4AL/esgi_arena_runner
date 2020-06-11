@@ -14,3 +14,4 @@ serde_json = "1.0"
 dotenv = "0.15.0"
 log = "0.4.0"
 env_logger = "0.6.0"
+esgi_arena_resolver_algorithms = { git = "https://github.com/ESGI-SCHOOL-4AL/esgi_arena_resolver_algorithms.git", branch = "master" }
