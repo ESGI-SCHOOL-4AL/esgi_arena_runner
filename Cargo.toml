@@ -1,6 +1,6 @@
 [package]
 name = "esgi_arena_runner"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["LAURENT Louis <louis_laurent@aol.fr>"]
 edition = "2018"
 
